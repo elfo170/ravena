@@ -1,0 +1,51 @@
+version: '3.7'
+
+services:
+  whatsapp-bot:
+    build: .
+    container_name: ravena-whatsapp-bot
+    restart: unless-stopped
+    
+    networks:
+      - ApexNet
+    
+    volumes:
+      # Persiste dados de sessão do WhatsApp
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./.wwebjs_auth:/app/.wwebjs_auth
+      # Volume para arquivos de mídia temporários
+      - ./temp:/app/temp
+    
+    environment:
+      - NODE_ENV=production
+      - TZ=America/Sao_Paulo
+      # Configurações do Puppeteer para Docker
+      - PUPPETEER_ARGS=--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-accelerated-2d-canvas --no-first-run --no-zygote --single-process --disable-gpu
+    
+    # Recursos limitados para evitar sobrecarga
+    mem_limit: 1g
+    mem_reservation: 512m
+    cpus: 0.5
+    
+    # Labels do Traefik
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.ravena_whatsapp_bot.rule=Host(`ravena.apexmarketingdigital.com`)
+      - traefik.http.routers.ravena_whatsapp_bot.entrypoints=websecure
+      - traefik.http.routers.ravena_whatsapp_bot.tls.certresolver=letsencryptresolver
+      - traefik.http.routers.ravena_whatsapp_bot.service=ravena_whatsapp_bot
+      - traefik.http.services.ravena_whatsapp_bot.loadbalancer.server.port=3000
+      - traefik.http.services.ravena_whatsapp_bot.loadbalancer.passHostHeader=true
+    
+    # Verificação de saúde
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  ApexNet:
+    external: true
